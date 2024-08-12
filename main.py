@@ -1,3 +1,4 @@
+import csv
 from pickletools import optimize
 import click 
 
@@ -267,6 +268,16 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
     for caption, score in ranked_response:
         score = int(score * 100)
         logger.debug(f'caption : {caption} | score : {score:03d}')
+
+    # CSV 파일에 저장
+    csv_file_path = 'results.csv'
+    with open(csv_file_path, mode='w', newline='') as file:
+        writer = csv.writer(file)
+        writer.writerow(['img_name', 'comment'])
+        for caption, score in ranked_response:
+            writer.writerow([path2image, caption])
+    
+    logger.success(f'Results saved to {csv_file_path}')
 
 if __name__ == '__main__':
     router_command(obj={})

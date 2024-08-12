@@ -1,0 +1,18 @@
+docker run 
+    --rm 
+    --tty 
+    --name capformer 
+    --gpus all 
+    -v ${PWD}/source:/home/solver/source 
+    -v ${PWD}/models:/home/solver/models 
+    -v ${PWD}/target:/home/solver/target 
+    -v ${PWD}/images:/home/solver/images  
+    -e TERM=xterm-256color 
+    capformer:0.0 processing 
+        --path2images /home/solver/source/images 
+        --path2captions /home/solver/source/captions.json 
+        --path2vectorizer /home/solver/models/resnet152.th 
+        --extension jpg 
+        --path2features /home/solver/target/map_img2features.pkl 
+        --path2tokenids /home/solver/target/zip_img2tokenids.pkl 
+        --path2vocabulary /home/solver/target/vocabulary.pkl 
