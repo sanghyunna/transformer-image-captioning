@@ -35,7 +35,16 @@ def pull_files(endpoint, extension):
 
 def build_tokenizer(tok_name='spacy', lang='en_core_web_sm'):
     tokenizer = get_tokenizer(tokenizer=tok_name, language=lang)
-    return tokenizer 
+
+    def tokenize_and_truncate(text): # 새 함수 정의
+        tokens = tokenizer(text)
+        return tokens[:64] # 64는 텐서 길이 제한
+    """
+    Learning 단계에서 자꾸 오류 발생해서 truncation
+    RuntimeError: The size of tensor a (66) must match the size of tensor b (64) at non-singleton dimension 1
+    """
+       
+    return tokenize_and_truncate 
 
 def yield_tokens(data_iter, tokenizer):
     for sample in track(data_iter, description=f'tokenization process'):

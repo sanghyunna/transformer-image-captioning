@@ -6,7 +6,7 @@ docker run
     -v ${PWD}/source:/home/solver/source 
     -v ${PWD}/models:/home/solver/models 
     -v ${PWD}/target:/home/solver/target 
-    -v ${PWD}/images:/home/solver/images  
+    -v ${PWD}/images:/home/solver/images 
     -e TERM=xterm-256color 
     capformer:0.0 processing 
         --path2images /home/solver/source/images 

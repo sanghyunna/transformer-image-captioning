@@ -9,6 +9,8 @@ import torch.nn.functional as F
 class PositionalEncoding(nn.Module):
     def __init__(self, seq_length, in_dim, drop_val=0.1):
         super(PositionalEncoding, self).__init__()
+        # if seq_length > 64:
+        #     seq_length = 64
         pos = np.arange(0, seq_length)[:, None]
         idx = np.fromfunction(lambda _,j: j - j % 2, shape=(1, in_dim))
         mask = np.fromfunction(lambda _,j: j % 2 == 0, shape=(1, in_dim))
@@ -21,7 +23,10 @@ class PositionalEncoding(nn.Module):
 
     def forward(self, src):
         _, seq_length, _ = src.shape 
+        # if seq_length > 64:
+        #     seq_length = 64
         pos = self.psne_layer[:seq_length, :][None, ...]
+        # assert src.shape == pos.shape, "src.shape and pos.shape should be addable"
         return self.drop_layer(src + pos)
 
 class FeedForwardNetwork(nn.Module):

@@ -1,0 +1,18 @@
+docker run 
+    --rm 
+    --tty 
+    --name capformer 
+    --gpus all 
+    -v ${PWD}/source:/home/solver/source 
+    -v ${PWD}/models:/home/solver/models 
+    -v ${PWD}/target:/home/solver/target 
+    -v ${PWD}/images:/home/solver/images 
+    -e TERM=xterm-256color 
+    capformer:0.0 
+    describe 
+        --path2vectorizer /home/solver/models/resnet152.th 
+        --path2ranker /home/solver/models/ranker.pkl 
+        --path2vocabulary /home/solver/target/vocabulary.pkl 
+        --path2checkpoint /home/solver/models/checkpoint_128.th 
+        --beam_width 17 
+        --path2image /home/solver/images/bob.jpg 
