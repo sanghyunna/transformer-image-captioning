@@ -1,4 +1,5 @@
 import torch as th 
+import pandas as pd
 
 from os import path 
 from torch.utils.data import Dataset
@@ -22,6 +23,10 @@ class DatasetForTraining(Dataset):
     def __init__(self, path2tokenids, path2features):
         self.tokenids = deserialize(path2tokenids)
         self.features = deserialize(path2features)
+
+        df = pd.read_csv('train.csv')
+        self.mos = df[:, 'mos'].values
+
     def __len__(self):
         return len(self.tokenids)
     
@@ -30,4 +35,7 @@ class DatasetForTraining(Dataset):
         vec = self.features[file_name]
         vec = th.tensor(vec).float()
         ids = th.tensor(ids).long()
-        return vec, ids
+
+        mos = th.tensor(self.mos[idx]).float()
+        
+        return vec, ids, mos

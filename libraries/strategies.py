@@ -157,11 +157,11 @@ def rank_solutions(pil_image, sentences, ranker, processor, device):
         return normalized_scores.tolist()
 
 def custom_fn(batch):
-    features, token_ids = list(zip(*batch)) 
+    features, token_ids, mos = list(zip(*batch)) 
     features = th.stack(features)     # 3d 
     token_ids = list(token_ids)
     token_ids = pad_sequence(token_ids, batch_first=True, padding_value=SPECIALS2IDX['<pad>'])
-    return features, token_ids 
+    return features, token_ids, mos
 
 def build_mask(seq):
     seq_length = seq.shape[1]
@@ -186,7 +186,7 @@ def greedy_search(model, source, BOS, EOS, max_len, device):
     return th.flatten(target) 
 
 def beam_search(model, source, BOS, EOS, max_len, device, beam_width, alpha=0.7):
-    memory = model.encode(source.to(device))
+    mos, memory = model.encode(source.to(device))
     target = th.tensor([[BOS]])
     with th.no_grad():
         output = model.decode(target.to(device), memory)
@@ -244,4 +244,4 @@ def beam_search(model, source, BOS, EOS, max_len, device, beam_width, alpha=0.7)
             weights = th.tensor(weights_tmp)
             sequence_tracker = sequence_tmp
     # end while search loop ...! 
-    return response_tracker          
+    return mos, response_tracker          

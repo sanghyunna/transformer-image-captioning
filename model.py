@@ -20,13 +20,20 @@ class CaptionTransformer(nn.Module):
             pre_norm=pre_norm
         )
         self.generator = nn.Linear(hd_dim, nb_tokens)
+
+        # Image quality assessment head
+        self.regression_head = nn.Linear(2048, 1)  # last layer has 2048 features
     
 
     def encode(self, src, src_mask=None, src_key_padding_mask=None):
         src = self.adaptaror(src)  # reduce the dimension for in_dim to hd_dim 
         src = self.position_encoder(src)
         memory = self.transformer.encoder(src, src_mask, src_key_padding_mask)
-        return memory 
+        
+        # Image quality regression
+        mos = self.regression_head(memory)
+        
+        return mos, memory 
     
     def decode(self, tgt, memory, tgt_mask=None, memory_mask=None, tgt_key_padding_mask=None, memory_key_padding_mask=None):
         tgt = self.token_embedder(tgt) * self.embedding_scale

@@ -145,14 +145,15 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
     print(net)
 
     optimizer = th.optim.Adam(net.parameters(), lr=1e-4, betas=(0.9, 0.99), eps=1e-9)
-    criterion = nn.CrossEntropyLoss(ignore_index=SPECIALS2IDX['<pad>'])
+    criterion1 = nn.MSELoss() # criterion for predicting mos
+    criterion2 = nn.CrossEntropyLoss(ignore_index=SPECIALS2IDX['<pad>']) # criterion for captioning
     logger.debug('training  will begin ...!')
     sleep(1)
 
     nb_epochs += start 
     for epoch in range(start, nb_epochs):
         counter = 0
-        for src, tgt in dataloader:
+        for src, tgt, mos in dataloader:
             counter += len(tgt)
             tgt_input = tgt[:, :-1]
             tgt_output = tgt[:, 1:]
@@ -160,7 +161,7 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
             tgt_mask = build_mask(tgt_input).to(device)
             tgt_key_padding_mask = build_key_padding_mask(tgt_input, SPECIALS2IDX['<pad>']).to(device)
             
-            memory = net.encode(src=src.to(device))
+            pred_mos, memory = net.encode(src=src.to(device))
             output = net.decode(
                 tgt=tgt_input.to(device), 
                 memory=memory, 
@@ -173,8 +174,11 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
             tgt_output = th.flatten(tgt_output)
 
             optimizer.zero_grad() 
-            errors = [ criterion(prb, tgt_output.to(device)) for prb in logits ]
-            error = sum(errors)
+            error1 = criterion1(pred_mos.squeeze(1), mos) # loss of predicted mos
+            errors = [ criterion2(prb, tgt_output.to(device)) for prb in logits ]
+            error2 = sum(errors) # loss of caption
+            error = error1 + error2
+
             error.backward()
             optimizer.step()
 
@@ -241,7 +245,7 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
     embedding = extract_features(vectorizer, th_image[None, ...].to(device)).squeeze(0)
     output_batch = th.flatten(embedding, start_dim=1).T  # 49, 2048  
     
-    response = beam_search(
+    mos, response = beam_search(
         model=net, 
         source=output_batch[None, ...], 
         BOS=SPECIALS2IDX['<bos>'], 
@@ -251,6 +255,7 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
         device=device, 
         alpha=0.7
     )
+    logger.debug(f'mos => {mos}') # generated mos
     
     logger.debug(f'nb generated : {len(response)}')
     sentences = []
