@@ -1,8 +1,11 @@
 import csv
+import os
+import pdb
 from pickletools import optimize
 import click 
 
 from torch.utils.data import DataLoader
+import torch
 
 from os import getenv, path 
 from time import sleep 
@@ -119,7 +122,8 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
     logger.debug('build dataset')
     dataset = DatasetForTraining(path2tokenids, path2features)
     logger.debug(f'size of the dataset : {len(dataset):05d}')
-    dataloader = DataLoader(dataset, batch_size=bt_size, shuffle=True, collate_fn=custom_fn)
+    dataloader = DataLoader(dataset, batch_size=bt_size, shuffle=False, collate_fn=custom_fn) # 재구현성을 위해 shuffle=False로 변경
+    # dataloader = DataLoader(dataset, batch_size=bt_size, shuffle=True, collate_fn=custom_fn)
     nb_data = len(dataset)
 
     logger.debug('define network')
@@ -134,7 +138,7 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
             num_encoders=5,
             num_decoders=5,
             pre_norm=False,
-            seq_length=64,
+            seq_length=128,
             nb_tokens=nb_tokens,
             padding_idx=SPECIALS2IDX['<pad>'] 
         )
@@ -144,16 +148,26 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
     
     print(net)
 
-    optimizer = th.optim.Adam(net.parameters(), lr=1e-4, betas=(0.9, 0.99), eps=1e-9)
+    optimizer = th.optim.Adam(net.parameters(), lr=1e-5, betas=(0.9, 0.99), eps=1e-9)
     criterion = nn.CrossEntropyLoss(ignore_index=SPECIALS2IDX['<pad>'])
     logger.debug('training  will begin ...!')
     sleep(1)
+
+    torch.autograd.set_detect_anomaly(True)
 
     nb_epochs += start 
     for epoch in range(start, nb_epochs):
         counter = 0
         for src, tgt in dataloader:
             counter += len(tgt)
+            # Check for NaNs in src and tgt
+            if th.isnan(src).any() or th.isinf(src).any():
+                logger.error('NaN or Inf detected in src')
+                src = th.nan_to_num(src, nan=1e-9, posinf=1e9, neginf=-1e9)
+            if th.isnan(tgt).any() or th.isinf(tgt).any():
+                logger.error('NaN or Inf detected in tgt')
+                tgt = th.nan_to_num(tgt, nan=1e-9, posinf=1e9, neginf=-1e9)
+
             tgt_input = tgt[:, :-1]
             tgt_output = tgt[:, 1:]
             
@@ -169,13 +183,28 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
             )
 
             logits = [net.generator(out) for out in output ]
+
+            # NaN 과 Inf 값 처리
+            for i, logit in enumerate(logits):
+                if th.isnan(logit).any() or th.isinf(logit).any():
+                    logger.error(f'NaN or Inf detected in logits at index {i}')
+                    logit = th.nan_to_num(logit, nan=1e-9, posinf=1e9, neginf=-1e9)
+                    logits[i] = logit
+
             logits = [ th.flatten(prb, start_dim=0, end_dim=1) for prb in logits ]
             tgt_output = th.flatten(tgt_output)
 
             optimizer.zero_grad() 
             errors = [ criterion(prb, tgt_output.to(device)) for prb in logits ]
             error = sum(errors)
-            error.backward()
+            try:
+                error.backward()
+            except Exception as err:
+                pdb.set_trace()
+
+            # gradient clipping 하여 exploding gradient 방지
+            th.nn.utils.clip_grad_norm_(net.parameters(), max_norm=1.0)
+            
             optimizer.step()
 
             message = []
@@ -214,6 +243,8 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
     logger.debug('env variables loading')
     logger.debug('features, vocab and token_ids loading')
     
+    net = None # 선언 전에 사용된다고 에러 떠서 None으로 초기화
+
     if path.isfile(path2checkpoint):
         logger.debug('model(snapshot) will be loaded')
         net = th.load(path2checkpoint)
@@ -234,50 +265,65 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
 
     logger.debug('features extraction by resnet152')
 
-    cv_image = read_image(path2image)
-    th_image = cv2th(cv_image)
-    th_image = prepare_image(th_image)
+    img_list = pull_images(os.path.dirname(path2image))
+    img_list = [os.path.basename(img) for img in img_list]
+    img_dir = os.path.dirname(path2image)
 
-    embedding = extract_features(vectorizer, th_image[None, ...].to(device)).squeeze(0)
-    output_batch = th.flatten(embedding, start_dim=1).T  # 49, 2048  
-    
-    response = beam_search(
-        model=net, 
-        source=output_batch[None, ...], 
-        BOS=SPECIALS2IDX['<bos>'], 
-        EOS=SPECIALS2IDX['<eos>'],
-        max_len=64, 
-        beam_width=beam_width,
-        device=device, 
-        alpha=0.7
-    )
-    
-    logger.debug(f'nb generated : {len(response)}')
-    sentences = []
-    for sequence, _ in response:
-        caption = vocab.lookup_tokens(sequence[1:-1])  # ignore <bos> and <eos>
-        joined_caption = ' '.join(caption)
-        sentences.append(joined_caption)
-        
-    logger.debug('ranking will begin...!')
-    pil_image = cv2pil(cv_image)
-    ranked_scores = rank_solutions(pil_image, sentences, ranker, processor, device)
-    ranked_response = list(zip(sentences, ranked_scores))
-    ranked_response = sorted(ranked_response, key=op.itemgetter(1), reverse=True)
-
-    for caption, score in ranked_response:
-        score = int(score * 100)
-        logger.debug(f'caption : {caption} | score : {score:03d}')
-
-    # CSV 파일에 저장
-    csv_file_path = 'results.csv'
+    csv_file_path = os.path.join('./results/results.csv')
     with open(csv_file_path, mode='w', newline='') as file:
         writer = csv.writer(file)
         writer.writerow(['img_name', 'comment'])
+
+    def generate_caption(img_dir, img_name, net, vectorizer, vocab, ranker, processor, device, beam_width):
+        cv_image = read_image(img_dir + '/' + img_name)
+        th_image = cv2th(cv_image)
+        th_image = prepare_image(th_image)
+
+        embedding = extract_features(vectorizer, th_image[None, ...].to(device)).squeeze(0)
+        output_batch = th.flatten(embedding, start_dim=1).T  # 49, 2048  
+
+        response = beam_search(
+            model=net, 
+            source=output_batch[None, ...], 
+            BOS=SPECIALS2IDX['<bos>'], 
+            EOS=SPECIALS2IDX['<eos>'],
+            max_len=64, 
+            beam_width=beam_width,
+            device=device, 
+            alpha=0.7
+        )
+        
+        # logger.debug(f'nb generated : {len(response)}')
+        sentences = []
+        for sequence, _ in response:
+            caption = vocab.lookup_tokens(sequence[1:-1])  # ignore <bos> and <eos>
+            joined_caption = ' '.join(caption)
+            sentences.append(joined_caption)
+            
+        # logger.debug('ranking will begin...!')
+        pil_image = cv2pil(cv_image)
+        ranked_scores = rank_solutions(pil_image, sentences, ranker, processor, device)
+        ranked_response = list(zip(sentences, ranked_scores))
+        ranked_response = sorted(ranked_response, key=op.itemgetter(1), reverse=True)
+
         for caption, score in ranked_response:
-            writer.writerow([path2image, caption])
+            score = int(score * 100)
+            # logger.debug(f'caption : {caption} | score : {score:03d}')
+
+        best_caption, best_score = ranked_response[-1]
+        logger.debug(f'filename : {img_name} | Best caption: {best_caption} | Score: {best_score}')
+
+        # CSV 파일에 저장
+        csv_file_path = os.path.join('./results/results.csv')
+        with open(csv_file_path, mode='a', newline='') as file:
+            writer = csv.writer(file)
+            writer.writerow([img_name, best_caption])
+        
+        # logger.success(f'Results saved to {csv_file_path}')
+
     
-    logger.success(f'Results saved to {csv_file_path}')
+    for img_name in img_list:
+        generate_caption(img_dir, img_name, net, vectorizer, vocab, ranker, processor, device, beam_width)
 
 if __name__ == '__main__':
     router_command(obj={})

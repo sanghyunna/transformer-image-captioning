@@ -36,20 +36,24 @@ def pull_files(endpoint, extension):
 def build_tokenizer(tok_name='spacy', lang='en_core_web_sm'):
     tokenizer = get_tokenizer(tokenizer=tok_name, language=lang)
 
-    def tokenize_and_truncate(text): # 새 함수 정의
-        tokens = tokenizer(text)
-        return tokens[:64] # 64는 텐서 길이 제한
+    # def tokenize_and_truncate(text): # 새 함수 정의
+    #     tokens = tokenizer(text)
+    #     return tokens[:64] # 64는 텐서 길이 제한
     """
     Learning 단계에서 자꾸 오류 발생해서 truncation
     RuntimeError: The size of tensor a (66) must match the size of tensor b (64) at non-singleton dimension 1
     """
        
-    return tokenize_and_truncate 
+    return tokenizer
 
 def yield_tokens(data_iter, tokenizer):
+    max_tokens = 64
     for sample in track(data_iter, description=f'tokenization process'):
         sample = sample.strip().lower()  # remove trailing keys and lowercase 
-        yield tokenizer(sample)
+        
+        tokens = tokenizer(sample)
+        tokens = tokens[:max_tokens]
+        yield tokens
     
 def make_vocab(data_iter, tokenizer, map_specials2idx):
     vocab = build_vocab_from_iterator(
@@ -226,7 +230,7 @@ def beam_search(model, source, BOS, EOS, max_len, device, beam_width, alpha=0.7)
             col = pos % vocab_size  # get relative position over vocab_size 
             sequence = th.cat([sequence_tracker[row], th.tensor([[col]])], dim=1)
             if col == EOS:
-                logger.success('a sentence was generated :)')
+                # logger.success('a sentence was generated :)') # 너무 많이 출력되어서 주석처리
                 flattened_sequence = th.flatten(sequence).tolist()
                 sequence_score = weights[idx] / len(flattened_sequence) ** alpha 
                 response_tracker.append((flattened_sequence, sequence_score))  # a sentence was built 
