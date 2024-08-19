@@ -2,7 +2,7 @@ import csv
 import os
 import pdb
 from pickletools import optimize
-import click 
+# import click 
 
 from torch.utils.data import DataLoader
 import torch
@@ -15,11 +15,12 @@ from libraries.log import logger
 from libraries.strategies import * 
 
 from model import CaptionTransformer
+import sys
 
 
-@click.group(chain=False, invoke_without_command=True)
-@click.option('--debug/--no-debug', help='debug mode flag', default=True)
-@click.pass_context
+# @click.group(chain=False, invoke_without_command=True)
+# @click.option('--debug/--no-debug', help='debug mode flag', default=True)
+# @click.pass_context
 def router_command(ctx, debug):
     ctx.ensure_object(dict)
     
@@ -40,14 +41,14 @@ def router_command(ctx, debug):
     else:
         logger.debug(f'{command} was called')
 
-@router_command.command()
-@click.option('--path2vectorizer', help='path to models for features extraction', type=click.Path(False))
-@click.option('--path2images', help='path to images directory', type=click.Path(True))
-@click.option('--path2captions', help='path to captions json file', type=click.Path(True))
-@click.option('--extension', help='image file extension', type=click.Choice(['jpg', 'jpeg']))
-@click.option('--path2features', help='path to features dump location', type=click.Path(False))
-@click.option('--path2tokenids', help='path to tokenids dump lication', type=click.Path(False))
-@click.option('--path2vocabulary', help='path to vacabulary dump location', type=click.Path(False))
+# @router_command.command()
+# @click.option('--path2vectorizer', help='path to models for features extraction', type=click.Path(False))
+# @click.option('--path2images', help='path to images directory', type=click.Path(True))
+# @click.option('--path2captions', help='path to captions json file', type=click.Path(True))
+# @click.option('--extension', help='image file extension', type=click.Choice(['jpg', 'jpeg']))
+# @click.option('--path2features', help='path to features dump location', type=click.Path(False))
+# @click.option('--path2tokenids', help='path to tokenids dump lication', type=click.Path(False))
+# @click.option('--path2vocabulary', help='path to vacabulary dump location', type=click.Path(False))
 def processing(path2vectorizer, path2images, path2captions, extension, path2features, path2tokenids, path2vocabulary):
     device = th.device('cuda:0' if th.cuda.is_available() else 'cpu')
 
@@ -101,17 +102,17 @@ def processing(path2vectorizer, path2images, path2captions, extension, path2feat
 
     logger.success('features, tokenids and vocabulary were saved')
 
-@router_command.command()
-@click.option('--path2vocabulary', help='path to vacabulary dump location', type=click.Path(True))
-@click.option('--path2features', help='path to features dump location', type=click.Path(True))
-@click.option('--path2tokenids', help='path to tokenids dump lication', type=click.Path(True))
-@click.option('--nb_epochs', help='number of epochs', type=int, default=128)
-@click.option('--bt_size', help='batch size', type=int, default=32)
-@click.option('--path2checkpoint', help='path to checkpoint model', type=click.Path(False))
-@click.option('--checkpoint', help='checkpoint period(save model)', type=int, default=16)
-@click.option('--start', help='start epoch index', type=int, default=0)
-def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, path2checkpoint, checkpoint, start):
-    basepath2models = getenv('MODELS')
+# @router_command.command()
+# @click.option('--path2vocabulary', help='path to vacabulary dump location', type=click.Path(True))
+# @click.option('--path2features', help='path to features dump location', type=click.Path(True))
+# @click.option('--path2tokenids', help='path to tokenids dump lication', type=click.Path(True))
+# @click.option('--nb_epochs', help='number of epochs', type=int, default=128)
+# @click.option('--bt_size', help='batch size', type=int, default=32)
+# @click.option('--path2checkpoint', help='path to checkpoint model', type=click.Path(False))
+# @click.option('--checkpoint', help='checkpoint period(save model)', type=int, default=16)
+# @click.option('--start', help='start epoch index', type=int, default=0)
+def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, path2checkpoint, checkpoint, start, basepath2models):
+    
 
     device = th.device('cuda:0' if th.cuda.is_available() else 'cpu')
 
@@ -230,13 +231,13 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
 
 
 
-@router_command.command()
-@click.option('--path2vectorizer', help='name of the stored model(features extractor)', type=str)
-@click.option('--path2checkpoint', help='model snapshot filename', type=str)
-@click.option('--path2image', help='image to describe', type=str)
-@click.option('--path2vocabulary', help='vocabulary object', type=str)
-@click.option('--beam_width', help='size of beam', type=int, default=7)
-@click.option('--path2ranker', help='name of the ranker model', type=str)
+# @router_command.command()
+# @click.option('--path2vectorizer', help='name of the stored model(features extractor)', type=str)
+# @click.option('--path2checkpoint', help='model snapshot filename', type=str)
+# @click.option('--path2image', help='image to describe', type=str)
+# @click.option('--path2vocabulary', help='vocabulary object', type=str)
+# @click.option('--beam_width', help='size of beam', type=int, default=7)
+# @click.option('--path2ranker', help='name of the ranker model', type=str)
 def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam_width, path2ranker):
     device = th.device('cuda:0' if th.cuda.is_available() else 'cpu')
 
@@ -326,4 +327,45 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
         generate_caption(img_dir, img_name, net, vectorizer, vocab, ranker, processor, device, beam_width)
 
 if __name__ == '__main__':
-    router_command(obj={})
+    # router_command(obj={})
+    
+    path2images = './source/images'
+    path2captions = './source/captions.json'
+    path2vectorizer = './models/resnet152.th'
+    extension = 'jpg'
+    path2features = './target/map_img2features.pkl'
+    path2tokenids = './target/zip_img2tokenids.pkl'
+    path2vocabulary = './target/vocabulary.pkl'
+    path2features = './target/map_img2features.pkl'
+    learning_nb_epochs = 5
+    learning_bt_size = 64
+    path2checkpoint = './models/checkpoint_###.th'
+    learning_checkpoint = 32
+    learning_start = 0
+    path2ranker = './models/ranker.pkl'
+    beam_width = 20
+    path2image = './images/00dswkswq6.jpg'
+    basepath2models = './models'
+
+    if len(sys.argv) > 1:
+        command = sys.argv[1]
+
+        try:
+            epochs = sys.argv[2]
+        except:
+            epochs = learning_nb_epochs
+        
+        try:
+            batch_size = sys.argv[3]
+        except:
+            batch_size = learning_bt_size
+        if command == 'processing':
+            processing(path2vectorizer, path2images, path2captions, extension, path2features, path2tokenids, path2vocabulary)
+        elif command == 'learning':
+            learning(path2vocabulary, path2features, path2tokenids, epochs, batch_size, path2checkpoint, learning_checkpoint, learning_start, basepath2models)
+        elif command == 'describe':
+            describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam_width, path2ranker)
+        else:
+            print("Invalid command")
+    else:
+        print("No command provided")

@@ -4,6 +4,7 @@ from multiprocessing.sharedctypes import Value
 import pickle as pk 
 
 import clip 
+import spacy
 
 import cv2 
 import numpy as np 
@@ -24,7 +25,7 @@ from torchvision import models
 from torchvision import transforms as T 
 from torchtext.data.utils import get_tokenizer
 from torchtext.vocab import build_vocab_from_iterator 
-
+# tokenizer = spacy.load('en_core_web_sm')
 from libraries.log import logger 
 
 SPECIALS2IDX = {"<unk>": 0, "<pad>": 1, "<bos>": 2, "<eos>": 3}
@@ -35,15 +36,6 @@ def pull_files(endpoint, extension):
 
 def build_tokenizer(tok_name='spacy', lang='en_core_web_sm'):
     tokenizer = get_tokenizer(tokenizer=tok_name, language=lang)
-
-    # def tokenize_and_truncate(text): # 새 함수 정의
-    #     tokens = tokenizer(text)
-    #     return tokens[:64] # 64는 텐서 길이 제한
-    """
-    Learning 단계에서 자꾸 오류 발생해서 truncation
-    RuntimeError: The size of tensor a (66) must match the size of tensor b (64) at non-singleton dimension 1
-    """
-       
     return tokenizer
 
 def yield_tokens(data_iter, tokenizer):
