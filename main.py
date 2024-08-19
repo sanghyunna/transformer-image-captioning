@@ -351,12 +351,12 @@ if __name__ == '__main__':
         command = sys.argv[1]
 
         try:
-            epochs = sys.argv[2]
+            epochs = int(sys.argv[2])
         except:
             epochs = learning_nb_epochs
         
         try:
-            batch_size = sys.argv[3]
+            batch_size = int(sys.argv[3])
         except:
             batch_size = learning_bt_size
         if command == 'processing':
