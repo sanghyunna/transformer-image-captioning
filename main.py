@@ -280,59 +280,63 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
     #     writer.writerow(['img_name', 'comment'])
 
     def generate_caption(img_dir, img_name, net, vectorizer, vocab, ranker, processor, device, beam_width):
-        cv_image = read_image(img_dir + '/' + img_name)
-        th_image = cv2th(cv_image)
-        th_image = prepare_image(th_image)
+        try:
+            cv_image = read_image(img_dir + '/' + img_name)
+            th_image = cv2th(cv_image)
+            th_image = prepare_image(th_image)
 
-        embedding = extract_features(vectorizer, th_image[None, ...].to(device)).squeeze(0)
-        output_batch = th.flatten(embedding, start_dim=1).T  # 49, 2048  
-        for o in output_batch:
-            if th.isnan(o).any() or th.isinf(o).any():
-                logger.error('NaN or Inf detected in output_batch')
-                output_batch = th.nan_to_num(output_batch, nan=1e-9, posinf=1e9, neginf=-1e9)
+            embedding = extract_features(vectorizer, th_image[None, ...].to(device)).squeeze(0)
+            output_batch = th.flatten(embedding, start_dim=1).T  # 49, 2048  
+            for o in output_batch:
+                if th.isnan(o).any() or th.isinf(o).any():
+                    logger.error('NaN or Inf detected in output_batch')
+                    output_batch = th.nan_to_num(output_batch, nan=1e-9, posinf=1e9, neginf=-1e9)
 
-        response = beam_search(
-            model=net, 
-            source=output_batch[None, ...], 
-            BOS=SPECIALS2IDX['<bos>'], 
-            EOS=SPECIALS2IDX['<eos>'],
-            max_len=64, 
-            beam_width=beam_width,
-            device=device, 
-            alpha=0.7
-        )
-        
-        # logger.debug(f'nb generated : {len(response)}')
-        sentences = []
-        for sequence, _ in response:
-            caption = vocab.lookup_tokens(sequence[1:-1])  # ignore <bos> and <eos>
-            joined_caption = ' '.join(caption)
-            sentences.append(joined_caption)
+            response = beam_search(
+                model=net, 
+                source=output_batch[None, ...], 
+                BOS=SPECIALS2IDX['<bos>'], 
+                EOS=SPECIALS2IDX['<eos>'],
+                max_len=64, 
+                beam_width=beam_width,
+                device=device, 
+                alpha=0.7
+            )
             
-        # logger.debug('ranking will begin...!')
-        pil_image = cv2pil(cv_image)
-        ranked_scores = rank_solutions(pil_image, sentences, ranker, processor, device)
-        ranked_response = list(zip(sentences, ranked_scores))
-        ranked_response = sorted(ranked_response, key=op.itemgetter(1), reverse=True)
+            # logger.debug(f'nb generated : {len(response)}')
+            sentences = []
+            for sequence, _ in response:
+                caption = vocab.lookup_tokens(sequence[1:-1])  # ignore <bos> and <eos>
+                joined_caption = ' '.join(caption)
+                sentences.append(joined_caption)
+                
+            # logger.debug('ranking will begin...!')
+            pil_image = cv2pil(cv_image)
+            ranked_scores = rank_solutions(pil_image, sentences, ranker, processor, device)
+            ranked_response = list(zip(sentences, ranked_scores))
+            ranked_response = sorted(ranked_response, key=op.itemgetter(1), reverse=True)
 
-        for caption, score in ranked_response:
-            try:
-                score = float(score * 100)
-            except:
-                score = 100
-            # logger.debug(f'caption : {caption} | score : {score:03d}')
+            for caption, score in ranked_response:
+                try:
+                    score = float(score * 100)
+                except:
+                    score = 100
+                # logger.debug(f'caption : {caption} | score : {score:03d}')
 
-        for caption, score in ranked_response:
-            print(f'caption : {caption} | score : {score:03d}')
-        best_caption, best_score = ranked_response[-1]
-        logger.debug(f'filename : {img_name} | Best caption: {best_caption} | Score: {best_score}')
+            for caption, score in ranked_response:
+                print(f'caption : {caption} | score : {score:03d}')
+            best_caption, best_score = ranked_response[-1]
+            logger.debug(f'filename : {img_name} | Best caption: {best_caption} | Score: {best_score}')
 
-        # CSV 파일에 저장
-        csv_file_path = os.path.join('./results/results.csv')
-        with open(csv_file_path, mode='a', newline='') as file:
-            writer = csv.writer(file)
-            writer.writerow([img_name, best_caption])
-        
+            # CSV 파일에 저장
+            csv_file_path = os.path.join('./results/results.csv')
+            with open(csv_file_path, mode='a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow([img_name, best_caption])
+        except:
+            with open(csv_file_path, mode='a', newline='') as file:
+                writer = csv.writer(file)
+                writer.writerow([img_name, 'nice image.'])
         # logger.success(f'Results saved to {csv_file_path}')
 
     
