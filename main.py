@@ -6,6 +6,7 @@ from pickletools import optimize
 
 from torch.utils.data import DataLoader
 import torch
+import gc
 
 from os import getenv, path 
 from time import sleep 
@@ -156,7 +157,7 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
     logger.debug('training  will begin ...!')
     sleep(1)
 
-    torch.autograd.set_detect_anomaly(True)
+    # torch.autograd.set_detect_anomaly(True)
 
     nb_epochs += start 
     for epoch in range(start, nb_epochs):
@@ -223,6 +224,7 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
             th.save(net.cpu(), path2network)
             net.to(device)
             logger.success(f'a snapshot was saved {path2network}')
+            gc.collect()​
 
     # end for loop over epochs 
     
@@ -284,6 +286,10 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
 
         embedding = extract_features(vectorizer, th_image[None, ...].to(device)).squeeze(0)
         output_batch = th.flatten(embedding, start_dim=1).T  # 49, 2048  
+        for o in output_batch:
+            if th.isnan(o).any() or th.isinf(o).any():
+                logger.error('NaN or Inf detected in output_batch')
+                output_batch = th.nan_to_num(output_batch, nan=1e-9, posinf=1e9, neginf=-1e9)
 
         response = beam_search(
             model=net, 
@@ -316,7 +322,9 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
                 score = 100
             # logger.debug(f'caption : {caption} | score : {score:03d}')
 
-        best_caption, best_score = ranked_response[0]
+        for caption, score in ranked_response:
+            print(f'caption : {caption} | score : {score:03d}')
+        best_caption, best_score = ranked_response[-1]
         logger.debug(f'filename : {img_name} | Best caption: {best_caption} | Score: {best_score}')
 
         # CSV 파일에 저장
@@ -334,23 +342,23 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
 if __name__ == '__main__':
     # router_command(obj={})
     
-    path2images = './source/images'
-    path2captions = './source/captions.json'
-    path2vectorizer = './models/resnet152.th'
     extension = 'jpg'
+    path2images = './source/images'
+    path2captions = './source/sorted_captions.json'
+    path2vectorizer = './models/resnet152.th'
     path2features = './target/map_img2features.pkl'
     path2tokenids = './target/zip_img2tokenids.pkl'
     path2vocabulary = './target/vocabulary.pkl'
     path2features = './target/map_img2features.pkl'
-    learning_nb_epochs = 5
-    learning_bt_size = 64
     path2checkpoint = './models/checkpoint_###.th'
-    learning_checkpoint = 32
-    learning_start = 0
     path2ranker = './models/ranker.pkl'
-    beam_width = 20
     path2image = './images/00dswkswq6.jpg'
     basepath2models = './models'
+    learning_nb_epochs = 5
+    learning_bt_size = 64
+    learning_checkpoint = 32
+    learning_start = 0
+    beam_width = 20
 
     if len(sys.argv) > 1:
         command = sys.argv[1]
