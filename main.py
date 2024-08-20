@@ -16,7 +16,8 @@ from libraries.strategies import *
 
 from model import CaptionTransformer
 import sys
-
+import torchtext
+torchtext.disable_torchtext_deprecation_warning()
 
 # @click.group(chain=False, invoke_without_command=True)
 # @click.option('--debug/--no-debug', help='debug mode flag', default=True)
@@ -130,6 +131,7 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
     logger.debug('define network')
     if path.isfile(path2checkpoint):
         net = th.load(path2checkpoint)
+        logger.debug('Checkpoint Loaded')
     else:
         net = CaptionTransformer(
             in_dim=2048,
@@ -308,10 +310,13 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
         ranked_response = sorted(ranked_response, key=op.itemgetter(1), reverse=True)
 
         for caption, score in ranked_response:
-            score = int(score * 100)
+            try:
+                score = float(score * 100)
+            except:
+                score = 100
             # logger.debug(f'caption : {caption} | score : {score:03d}')
 
-        best_caption, best_score = ranked_response[-1]
+        best_caption, best_score = ranked_response[0]
         logger.debug(f'filename : {img_name} | Best caption: {best_caption} | Score: {best_score}')
 
         # CSV 파일에 저장
