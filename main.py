@@ -224,7 +224,7 @@ def learning(path2vocabulary, path2features, path2tokenids, nb_epochs, bt_size, 
             th.save(net.cpu(), path2network)
             net.to(device)
             logger.success(f'a snapshot was saved {path2network}')
-            gc.collect()​
+            gc.collect()
 
     # end for loop over epochs 
     
@@ -275,9 +275,9 @@ def describe(path2vectorizer, path2checkpoint, path2image, path2vocabulary, beam
     img_dir = os.path.dirname(path2image)
 
     csv_file_path = os.path.join('./results/results.csv')
-    with open(csv_file_path, mode='w', newline='') as file:
-        writer = csv.writer(file)
-        writer.writerow(['img_name', 'comment'])
+    # with open(csv_file_path, mode='w', newline='') as file:
+    #     writer = csv.writer(file)
+    #     writer.writerow(['img_name', 'comment'])
 
     def generate_caption(img_dir, img_name, net, vectorizer, vocab, ranker, processor, device, beam_width):
         cv_image = read_image(img_dir + '/' + img_name)
